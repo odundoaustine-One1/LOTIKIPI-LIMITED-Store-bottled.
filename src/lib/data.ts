@@ -1,16 +1,18 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   query,
   setDoc,
+  updateDoc,
   where,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { todayKey } from "./dates";
-import type { CartonStockDay, ProductSize, StockItemDay } from "../types";
+import type { CartonStockDay, ProductionEntry, ProductSize, StockItemDay } from "../types";
 
 /**
  * All of these deliberately avoid Firestore composite indexes (single-field
@@ -120,4 +122,24 @@ export async function saveTodayStockItemDay(
     { merge: true }
   );
   return merged;
+}
+
+/**
+ * Corrects a production log entry after the fact (wrong date, size, bag/piece
+ * count from a data-entry slip, etc). This only rewrites the `production` doc
+ * itself — it does NOT touch cartonStock or stockItems, since those cascade
+ * day-to-day and a safe automatic re-cascade isn't possible from a single
+ * edited entry. Reconcile cartonStock/stockItems by hand (Stock Entry /
+ * Firestore console) if the correction changes pieces produced or moves the
+ * entry to a different date.
+ */
+export async function updateProductionEntry(
+  id: string,
+  patch: Partial<Pick<ProductionEntry, "date" | "size" | "bags" | "pieces">>
+): Promise<void> {
+  await updateDoc(doc(db, "production", id), patch);
+}
+
+export async function deleteProductionEntry(id: string): Promise<void> {
+  await deleteDoc(doc(db, "production", id));
 }

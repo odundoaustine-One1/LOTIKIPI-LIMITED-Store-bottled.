@@ -1,21 +1,42 @@
 import { useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
-import { ITEMS, type CartonStockDay, type ProductionEntry, type StockItemDay } from "../types";
+import { useAuth } from "../AuthContext";
+import { deleteProductionEntry, updateProductionEntry } from "../lib/data";
+import {
+  ITEMS,
+  PRODUCT_SIZES,
+  type CartonStockDay,
+  type ProductionEntry,
+  type ProductSize,
+  type StockItemDay,
+} from "../types";
 import { formatDMY, todayKey } from "../lib/dates";
 
 type ReportType = "stock" | "production";
+type ProductionRow = ProductionEntry & { id: string };
 
 export default function History() {
+  const { profile } = useAuth();
+  const canEditProduction = profile?.role === "management";
   const [report, setReport] = useState<ReportType>("stock");
   const [itemFilter, setItemFilter] = useState("__all__");
   const [from, setFrom] = useState("2020-01-01");
   const [to, setTo] = useState(todayKey());
   const [stockRows, setStockRows] = useState<StockItemDay[]>([]);
   const [cartonRows, setCartonRows] = useState<CartonStockDay[]>([]);
-  const [productionRows, setProductionRows] = useState<ProductionEntry[]>([]);
+  const [productionRows, setProductionRows] = useState<ProductionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ date: string; size: ProductSize; bags: string; pieces: string }>({
+    date: todayKey(),
+    size: "1L",
+    bags: "0",
+    pieces: "0",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   async function search() {
     setLoading(true);
@@ -38,13 +59,51 @@ export default function History() {
         cRows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         setCartonRows(cRows);
 
-        let pRows = prodSnap.docs.map((d) => d.data() as ProductionEntry);
+        let pRows = prodSnap.docs.map((d) => ({ id: d.id, ...(d.data() as ProductionEntry) }));
         pRows = pRows.filter((r) => r.date >= from && r.date <= to);
         pRows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         setProductionRows(pRows);
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  function startEdit(row: ProductionRow) {
+    setEditingId(row.id);
+    setEditDraft({ date: row.date, size: row.size, bags: String(row.bags), pieces: String(row.pieces) });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(id: string) {
+    setSavingEdit(true);
+    try {
+      await updateProductionEntry(id, {
+        date: editDraft.date,
+        size: editDraft.size,
+        bags: Number(editDraft.bags || 0),
+        pieces: Number(editDraft.pieces || 0),
+      });
+      setEditingId(null);
+      await search();
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function removeRow(row: ProductionRow) {
+    if (!window.confirm(`Delete the ${formatDMY(row.date)} · ${row.size} · ${row.pieces} pcs entry? This cannot be undone.`)) {
+      return;
+    }
+    setRowBusy(row.id);
+    try {
+      await deleteProductionEntry(row.id);
+      await search();
+    } finally {
+      setRowBusy(null);
     }
   }
 
@@ -152,6 +211,13 @@ export default function History() {
           </section>
           <section className="card">
             <h2>Production log — {productionRows.length} entries</h2>
+            {canEditProduction && (
+              <p className="muted">
+                Editing corrects the production record only — it does not automatically recalculate carton or
+                material stock. If a fix changes pieces produced or moves the entry to a different date, reconcile
+                Carton stock and Stock items separately.
+              </p>
+            )}
             <div className="table-scroll">
               <table>
                 <thead>
@@ -160,17 +226,80 @@ export default function History() {
                     <th>Size</th>
                     <th>Bags</th>
                     <th>Pieces</th>
+                    {canEditProduction && <th>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {productionRows.map((r, idx) => (
-                    <tr key={idx}>
-                      <td>{formatDMY(r.date)}</td>
-                      <td>{r.size}</td>
-                      <td>{r.bags}</td>
-                      <td>{r.pieces.toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {productionRows.map((r) =>
+                    editingId === r.id ? (
+                      <tr key={r.id}>
+                        <td>
+                          <input
+                            type="date"
+                            value={editDraft.date}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, date: e.target.value }))}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={editDraft.size}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, size: e.target.value as ProductSize }))}
+                          >
+                            {PRODUCT_SIZES.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editDraft.bags}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, bags: e.target.value }))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editDraft.pieces}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, pieces: e.target.value }))}
+                          />
+                        </td>
+                        <td>
+                          <button disabled={savingEdit} onClick={() => saveEdit(r.id)}>
+                            {savingEdit ? "Saving…" : "Save"}
+                          </button>
+                          <button className="link-btn" disabled={savingEdit} onClick={cancelEdit}>
+                            Cancel
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={r.id}>
+                        <td>{formatDMY(r.date)}</td>
+                        <td>{r.size}</td>
+                        <td>{r.bags}</td>
+                        <td>{r.pieces.toLocaleString()}</td>
+                        {canEditProduction && (
+                          <td>
+                            <button className="link-btn" onClick={() => startEdit(r)}>
+                              Edit
+                            </button>{" "}
+                            <button
+                              className="link-btn"
+                              disabled={rowBusy === r.id}
+                              onClick={() => removeRow(r)}
+                            >
+                              {rowBusy === r.id ? "Deleting…" : "Delete"}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
