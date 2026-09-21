@@ -2,19 +2,16 @@ import { useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../AuthContext";
-import { deleteProductionEntry, updateProductionEntry } from "../lib/data";
 import {
-  ITEMS,
-  PRODUCT_SIZES,
-  type CartonStockDay,
-  type ProductionEntry,
-  type ProductSize,
-  type StockItemDay,
-} from "../types";
+  deleteProductionEntry,
+  normalizeProduction,
+  updateProductionEntry,
+  type ProductionRow,
+} from "../lib/data";
+import { ITEMS, PRODUCT_SIZES, type CartonStockDay, type ProductSize, type StockItemDay } from "../types";
 import { formatDMY, todayKey } from "../lib/dates";
 
 type ReportType = "stock" | "production";
-type ProductionRow = ProductionEntry & { id: string };
 
 export default function History() {
   const { profile } = useAuth();
@@ -59,7 +56,7 @@ export default function History() {
         cRows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         setCartonRows(cRows);
 
-        let pRows = prodSnap.docs.map((d) => ({ id: d.id, ...(d.data() as ProductionEntry) }));
+        let pRows = prodSnap.docs.map((d) => normalizeProduction(d.id, d.data()));
         pRows = pRows.filter((r) => r.date >= from && r.date <= to);
         pRows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         setProductionRows(pRows);
@@ -81,12 +78,16 @@ export default function History() {
   async function saveEdit(id: string) {
     setSavingEdit(true);
     try {
-      await updateProductionEntry(id, {
-        date: editDraft.date,
-        size: editDraft.size,
-        bags: Number(editDraft.bags || 0),
-        pieces: Number(editDraft.pieces || 0),
-      });
+      await updateProductionEntry(
+        id,
+        {
+          date: editDraft.date,
+          size: editDraft.size,
+          bags: Number(editDraft.bags || 0),
+          pieces: Number(editDraft.pieces || 0),
+        },
+        productionRows.find((r) => r.id === id)?.legacy ?? false
+      );
       setEditingId(null);
       await search();
     } finally {
