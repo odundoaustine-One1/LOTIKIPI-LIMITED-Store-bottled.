@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { addDoc, collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
-import type { ProductionEntry } from "../types";
+import { normalizeProduction } from "../lib/data";
 import { todayKey } from "../lib/dates";
 
 interface StaffMember {
@@ -47,13 +47,18 @@ export default function Payroll() {
   async function calculate() {
     const snap = await getDocs(collection(db, "production"));
     const rows = snap.docs
-      .map((d) => d.data() as ProductionEntry)
+      .map((d) => normalizeProduction(d.id, d.data()))
       .filter((r) => r.date >= from && r.date <= to);
+    // Old entries list staff by name, newer ones by staffMembers id — accept either.
+    const idByName = new Map(staff.map((s) => [s.name.trim().toLowerCase(), s.id]));
+    const knownIds = new Set(staff.map((s) => s.id));
     const totals: Record<string, number> = {};
     for (const row of rows) {
       const cartons = row.pieces / (row.size === "500ml" ? 24 : row.size === "1L" ? 12 : 8);
       const totalPay = cartons * RATE_PER_CARTON;
-      const staffOnShift = row.staff && row.staff.length > 0 ? row.staff : [];
+      const staffOnShift = row.staff
+        .map((s) => (knownIds.has(s) ? s : idByName.get(String(s).trim().toLowerCase())))
+        .filter((s): s is string => Boolean(s));
       if (staffOnShift.length === 0) continue;
       const share = totalPay / staffOnShift.length;
       for (const staffId of staffOnShift) {

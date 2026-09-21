@@ -135,9 +135,43 @@ export async function saveTodayStockItemDay(
  */
 export async function updateProductionEntry(
   id: string,
-  patch: Partial<Pick<ProductionEntry, "date" | "size" | "bags" | "pieces">>
+  patch: Partial<Pick<ProductionEntry, "date" | "size" | "bags" | "pieces">>,
+  legacy = false
 ): Promise<void> {
-  await updateDoc(doc(db, "production", id), patch);
+  // Keep an entry in whichever field names it already uses, so an edit never
+  // leaves a doc half old-style, half new-style.
+  if (!legacy) {
+    await updateDoc(doc(db, "production", id), patch);
+    return;
+  }
+  const out: Record<string, unknown> = {};
+  if (patch.date !== undefined) out.date = patch.date;
+  if (patch.size !== undefined) out.productSize = patch.size;
+  if (patch.bags !== undefined) out.bagsUsed = patch.bags;
+  if (patch.pieces !== undefined) out.piecesProduced = patch.pieces;
+  await updateDoc(doc(db, "production", id), out);
+}
+
+/**
+ * `production` docs exist in two shapes. The original app wrote
+ * piecesProduced / productSize / bagsUsed / staffOnShift; this rebuild writes
+ * pieces / size / bags / staff. Read both, so old and new entries all show up
+ * instead of the History page crashing on a missing field.
+ */
+export type ProductionRow = ProductionEntry & { id: string; legacy: boolean };
+
+export function normalizeProduction(id: string, raw: Record<string, unknown>): ProductionRow {
+  return {
+    id,
+    legacy: raw.pieces === undefined && raw.piecesProduced !== undefined,
+    date: String(raw.date ?? ""),
+    size: (raw.size ?? raw.productSize ?? "1L") as ProductSize,
+    bags: Number(raw.bags ?? raw.bagsUsed ?? 0),
+    pieces: Number(raw.pieces ?? raw.piecesProduced ?? 0),
+    staff: (raw.staff ?? raw.staffOnShift ?? []) as string[],
+    createdBy: String(raw.createdBy ?? ""),
+    createdAt: raw.createdAt,
+  };
 }
 
 export async function deleteProductionEntry(id: string): Promise<void> {
