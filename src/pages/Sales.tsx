@@ -66,7 +66,7 @@ export default function Sales() {
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         </label>
         <div className="kpi-grid">
-          <div className="kpi"><span>Sales</span><strong>{money(a.sales)}</strong><em>{a.n} days</em></div>
+          <div className="kpi"><span>Sales</span><strong>{money(a.sales)}</strong><em>{a.n} {a.n === 1 ? "day" : "days"} recorded</em></div>
           <div className="kpi"><span>Cash/M-PESA</span><strong>{money(a.cash)}</strong><em>Paybill {money(a.paybill)}</em></div>
           <div className="kpi kpi-credit"><span>Credit</span><strong>{money(a.credit)}</strong><em>{pct(a.credit, a.sales).toFixed(1)}% of sales</em></div>
           <div className="kpi"><span>Net deposit</span><strong>{money(a.net)}</strong><em>Expenses {money(a.expenses)}</em></div>

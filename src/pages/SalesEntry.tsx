@@ -14,6 +14,8 @@ interface ExpForm { item: string; amount: string }
 const num = (s: string) => (s.trim() === "" ? NaN : Number(s.replace(/,/g, "")));
 const orElse = (s: string, fallback: number) => (Number.isNaN(num(s)) ? fallback : num(s));
 
+const DEFAULT_EXPENSES = ["Lunch", "Supper", "Bike", "Loaders"];
+
 function blankLines(): LineForm[] {
   return SECTIONS.flatMap((s) =>
     SIZES[s].map((size) => ({ section: s, size, qty: "", price: DEFAULT_PRICE[s][size] ? String(DEFAULT_PRICE[s][size]) : "", amount: "" }))
@@ -32,7 +34,7 @@ export default function SalesEntry() {
   const [paybill, setPaybill] = useState<string[]>([""]);
   const [cash, setCash] = useState("");
   const [credit, setCredit] = useState("");
-  const [exps, setExps] = useState<ExpForm[]>([{ item: "Lunch", amount: "" }, { item: "Supper", amount: "" }, { item: "Bike", amount: "" }, { item: "Loaders", amount: "" }]);
+  const [exps, setExps] = useState<ExpForm[]>(DEFAULT_EXPENSES.map((item) => ({ item, amount: "" })));
   const [expTotal, setExpTotal] = useState("");
   const [gross, setGross] = useState("");
   const [net, setNet] = useState("");
@@ -53,7 +55,21 @@ export default function SalesEntry() {
       .then((d) => {
         if (cancel) return;
         setExisting(d);
-        if (!d) return;
+        if (!d) {
+          // New day: start from a clean form so nothing carries over from another date.
+          setLines(blankLines());
+          setTotal("");
+          setPaybill([""]);
+          setCash("");
+          setCredit("");
+          setExps(DEFAULT_EXPENSES.map((item) => ({ item, amount: "" })));
+          setExpTotal("");
+          setGross("");
+          setNet("");
+          setNotes("");
+          setAssumed("");
+          return;
+        }
         const base = blankLines().filter((b) => !d.lines.some((l) => l.section === b.section && l.size === b.size));
         setLines([...d.lines.map((l) => ({ section: l.section, size: l.size, qty: String(l.qty), price: String(l.price), amount: String(l.amount) })), ...base]
           .sort((a, b) => SECTIONS.indexOf(a.section) - SECTIONS.indexOf(b.section)));

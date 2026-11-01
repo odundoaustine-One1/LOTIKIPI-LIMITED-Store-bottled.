@@ -97,6 +97,19 @@ match /salesDays/{day} {
 }
 ```
 
+## Testing the Sales section locally (no live data touched)
+
+```bash
+npm install -g firebase-tools
+firebase emulators:start --config firebase.emulators.json --project lotikipi-1-stock-production
+VITE_USE_EMULATOR=1 npm run dev     # in a second terminal
+```
+
+The emulators use `firestore.rules.salesDays-test` (test-only rules; `firebase.json`
+has no `firestore` section, so a deploy never changes the console rules). Create a
+user in the Auth emulator and a matching `users/{uid}` doc with
+`role: "management"`, `active: true` to sign in.
+
 ## Local dev
 
 ```bash
