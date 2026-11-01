@@ -32,6 +32,10 @@ combine roles on one account. Give someone two accounts if they need two roles.
 - `staffMembers/{autoId}` — `name`, `active`
 - `auditLog/{autoId}` — written automatically by Cloud Functions (see below), never
   by the client
+- `salesDays/{YYYY-MM-DD}` — daily sales register (Sales section, management
+  only): `lines[]` (`section`, `size`, `qty`, `price`, `amount`), `totalSales`,
+  `paybill[]`, `cashMpesa`, `credit`, `expenses[]` (`item`, `amount`),
+  `expensesTotal`, `grossDeposit`, `netDeposit`, `notes`, `assumed[]`
 - `refills`, `itemConfig`, `payrollConfig`, `productSizeConfig` — seen in the
   original DB but not yet used by this rebuild; check the Firebase console before
   assuming they're empty
@@ -61,6 +65,51 @@ If you add a new query with `orderBy` + `where` on different fields, you will
 need to create the matching index in the Firebase console (Firestore → Indexes)
 or it will silently fail for real users once the collection grows.
 
+## Sales register (management)
+
+`/sales` — month overview, list of recorded days with check status, and report
+downloads. `/sales/day/new` (or `/sales/day/YYYY-MM-DD` to correct a day) — the
+"SUMMARY ON" entry form: refills, completes, cartons (extra lines for split
+prices), total sales, paybill amounts, cash/M-PESA, credit, itemised expenses,
+gross/net deposit, note, and assumed/unclear figures.
+
+The five checks run live (qty x price = amount; sections = total; paybill + cash
++ credit = total; expense items = expenses total; gross - expenses = net). Saving
+with a failed check, or replacing an existing day, needs a tick-box
+confirmation, and the issue is printed in the "Assumed / to confirm" box on the
+daily PDF.
+
+Reports are generated in the browser (code in `src/sales/`, loaded only when
+used): daily PDF (one page), weekly PDF (Mon–Sun), monthly PDF (cover, ledger
+with weekly subtotals, sign-off), and `Lotikipi_Sales_Register_YYYY.xlsx`
+(Daily Lines, Daily Summary, Expenses, Notes). Branding: logo blue `#0000B9`,
+gold `#D4AF37` / `#B8901F`, credit in rust.
+
+**Firestore rule needed.** The security rules live in the Firebase console
+(not in this repo). Add this inside `match /databases/{database}/documents`
+before first use, or saving a day fails with "permission denied":
+
+```
+match /salesDays/{day} {
+  allow read, write: if request.auth != null
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "management"
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+}
+```
+
+## Testing the Sales section locally (no live data touched)
+
+```bash
+npm install -g firebase-tools
+firebase emulators:start --config firebase.emulators.json --project lotikipi-1-stock-production
+VITE_USE_EMULATOR=1 npm run dev     # in a second terminal
+```
+
+The emulators use `firestore.rules.salesDays-test` (test-only rules; `firebase.json`
+has no `firestore` section, so a deploy never changes the console rules). Create a
+user in the Auth emulator and a matching `users/{uid}` doc with
+`role: "management"`, `active: true` to sign in.
+
 ## Local dev
 
 ```bash
@@ -81,3 +130,8 @@ pushing to the live URL:
 ```bash
 firebase hosting:channel:deploy preview-name --project lotikipi-1-stock-production --expires 2h
 ```
+
+Or without a computer: GitHub → Actions → "Deploy to Firebase Hosting" → Run
+workflow (choose `preview` first, then `live`). One-time setup: add repo secret
+`FIREBASE_SERVICE_ACCOUNT` (Firebase console → Project settings → Service
+accounts → Generate new private key; paste the whole JSON).

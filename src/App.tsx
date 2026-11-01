@@ -9,6 +9,8 @@ import StockEntry from "./pages/StockEntry";
 import History from "./pages/History";
 import AuditLog from "./pages/AuditLog";
 import Payroll from "./pages/Payroll";
+import Sales from "./pages/Sales";
+import SalesEntry from "./pages/SalesEntry";
 import type { Role } from "./types";
 
 function RequireRole({ allow, children }: { allow: Role[]; children: JSX.Element }) {
@@ -58,6 +60,22 @@ function Gate() {
           element={
             <RequireRole allow={["management"]}>
               <Payroll />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/sales"
+          element={
+            <RequireRole allow={["management"]}>
+              <Sales />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/sales/day/:date"
+          element={
+            <RequireRole allow={["management"]}>
+              <SalesEntry />
             </RequireRole>
           }
         />
