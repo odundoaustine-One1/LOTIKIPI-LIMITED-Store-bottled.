@@ -1,11 +1,16 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import type { Role } from "./types";
+import { APP_NAME, IS_SALES_APP } from "./lib/appMode";
+
+const SALES_NAV = [
+  { to: "/sales", label: "Overview" },
+  { to: "/sales/day/new", label: "Record a day" },
+];
 
 const NAV_BY_ROLE: Record<Role, { to: string; label: string }[]> = {
   management: [
     { to: "/", label: "Dashboard" },
-    { to: "/sales", label: "Sales" },
     { to: "/production", label: "Production" },
     { to: "/history", label: "History" },
     { to: "/audit-log", label: "Audit Log" },
@@ -27,7 +32,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string }[]> = {
 export default function Layout() {
   const { profile, signOutUser } = useAuth();
   if (!profile) return null;
-  const links = NAV_BY_ROLE[profile.role] ?? NAV_BY_ROLE.production;
+  const links = IS_SALES_APP ? SALES_NAV : NAV_BY_ROLE[profile.role] ?? NAV_BY_ROLE.production;
 
   return (
     <div className="app-shell">
@@ -39,7 +44,7 @@ export default function Layout() {
             className="brand-logo"
             onError={(e) => (e.currentTarget.style.display = "none")}
           />
-          <span>Lotikipi Water</span>
+          <span>{APP_NAME}</span>
         </span>
         <div className="header-right">
           <span className="muted hide-sm">{profile.email}</span>
@@ -53,7 +58,7 @@ export default function Layout() {
       </main>
       <nav className="app-nav">
         {links.map((l) => (
-          <NavLink key={l.to} to={l.to} end={l.to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>
+          <NavLink key={l.to} to={l.to} end={l.to === "/" || l.to === "/sales"} className={({ isActive }) => (isActive ? "active" : "")}>
             {l.label}
           </NavLink>
         ))}

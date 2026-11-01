@@ -8,7 +8,12 @@ possible** so this never happens again.
 ## Firebase project
 
 - Project ID: `lotikipi-1-stock-production`
-- Hosting: `https://lotikipi-1-stock-production.web.app`
+- Hosting, two sites in the same project (same logins, same Firestore):
+  - Stock tracker: `https://lotikipi-1-stock-production.web.app` (target `stock`, `npm run build` → `dist/`)
+  - Sales register: `https://lotikipi-sales.web.app` (target `sales`, `npm run build:sales` → `dist-sales/`,
+    management accounts only). One-time: create the site in Firebase console → Hosting →
+    "Add another site" with site ID `lotikipi-sales`. If that ID is taken, pick another and change
+    it in `.firebaserc` (`targets` → `sales`).
 - Firestore database: `(default)`, region `africa-south1`
 
 ## Roles (Firestore `users/{uid}`: `active`, `displayName`, `email`, `role`, `uid`)
@@ -67,6 +72,10 @@ or it will silently fail for real users once the collection grows.
 
 ## Sales register (management)
 
+The sales register is its own website (`lotikipi-sales.web.app`); the stock tracker
+does not show it. Same code base, built with `--mode sales` (`.env.sales`,
+`src/lib/appMode.ts`).
+
 `/sales` — month overview, list of recorded days with check status, and report
 downloads. `/sales/day/new` (or `/sales/day/YYYY-MM-DD` to correct a day) — the
 "SUMMARY ON" entry form: refills, completes, cartons (extra lines for split
@@ -102,7 +111,7 @@ match /salesDays/{day} {
 ```bash
 npm install -g firebase-tools
 firebase emulators:start --config firebase.emulators.json --project lotikipi-1-stock-production
-VITE_USE_EMULATOR=1 npm run dev     # in a second terminal
+VITE_USE_EMULATOR=1 npm run dev:sales     # in a second terminal
 ```
 
 The emulators use `firestore.rules.salesDays-test` (test-only rules; `firebase.json`
@@ -120,8 +129,12 @@ npm run dev
 ## Deploy
 
 ```bash
+# stock tracker
 npm run build
-firebase deploy --only hosting --project lotikipi-1-stock-production
+firebase deploy --only hosting:stock --project lotikipi-1-stock-production
+# sales register
+npm run build:sales
+firebase deploy --only hosting:sales --project lotikipi-1-stock-production
 ```
 
 Always deploy to a preview channel first and test with a real login before
@@ -132,6 +145,6 @@ firebase hosting:channel:deploy preview-name --project lotikipi-1-stock-producti
 ```
 
 Or without a computer: GitHub → Actions → "Deploy to Firebase Hosting" → Run
-workflow (choose `preview` first, then `live`). One-time setup: add repo secret
+workflow (choose the site, `sales` or `stock`, and `preview` first, then `live`). One-time setup: add repo secret
 `FIREBASE_SERVICE_ACCOUNT` (Firebase console → Project settings → Service
 accounts → Generate new private key; paste the whole JSON).

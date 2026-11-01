@@ -3,9 +3,17 @@ name: Deploy to Firebase Hosting
 # Manual only: Actions tab -> "Deploy to Firebase Hosting" -> Run workflow.
 # Needs repo secret FIREBASE_SERVICE_ACCOUNT (JSON key of a service account
 # with the "Firebase Hosting Admin" role in lotikipi-1-stock-production).
+#   site "sales" -> https://lotikipi-sales.web.app        (sales register)
+#   site "stock" -> https://lotikipi-1-stock-production.web.app (stock tracker)
 on:
   workflow_dispatch:
     inputs:
+      site:
+        description: "Which website to deploy"
+        required: true
+        default: sales
+        type: choice
+        options: [sales, stock]
       target:
         description: "preview (temporary link, 7 days) or live"
         required: true
@@ -24,10 +32,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        if: inputs.site == 'stock'
+      - run: npm run build:sales
+        if: inputs.site == 'sales'
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: lotikipi-1-stock-production
-          channelId: ${{ inputs.target == 'live' && 'live' || 'sales-preview' }}
+          target: ${{ inputs.site }}
+          channelId: ${{ inputs.target == 'live' && 'live' || format('{0}-preview', inputs.site) }}
           expires: 7d
