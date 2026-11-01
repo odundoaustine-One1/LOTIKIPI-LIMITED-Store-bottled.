@@ -5,6 +5,7 @@ import type { Role } from "./types";
 const NAV_BY_ROLE: Record<Role, { to: string; label: string }[]> = {
   management: [
     { to: "/", label: "Dashboard" },
+    { to: "/sales", label: "Sales" },
     { to: "/production", label: "Production" },
     { to: "/history", label: "History" },
     { to: "/audit-log", label: "Audit Log" },

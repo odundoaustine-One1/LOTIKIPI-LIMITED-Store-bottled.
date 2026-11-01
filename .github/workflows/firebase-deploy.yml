@@ -1,0 +1,33 @@
+name: Deploy to Firebase Hosting
+
+# Manual only: Actions tab -> "Deploy to Firebase Hosting" -> Run workflow.
+# Needs repo secret FIREBASE_SERVICE_ACCOUNT (JSON key of a service account
+# with the "Firebase Hosting Admin" role in lotikipi-1-stock-production).
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "preview (temporary link, 7 days) or live"
+        required: true
+        default: preview
+        type: choice
+        options: [preview, live]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: lotikipi-1-stock-production
+          channelId: ${{ inputs.target == 'live' && 'live' || 'sales-preview' }}
+          expires: 7d

@@ -138,3 +138,29 @@ table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 
 .audit-row pre { font-size: 0.75rem; white-space: pre-wrap; word-break: break-word; margin: 0; }
+
+/* ---- Sales register ---- */
+textarea {
+  display: block; width: 100%; padding: 8px 10px; margin-top: 4px;
+  border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 1rem;
+}
+.line-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1.2fr; gap: 6px; margin: 6px 0; }
+.line-grid input, .line-grid select { margin: 0; padding: 7px 8px; min-width: 0; }
+.line-head { font-size: 0.75rem; font-weight: 700; color: var(--muted); margin-bottom: 0; }
+.input-bad { border-color: var(--bad) !important; background: #fef2f2; }
+.attention-inline { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; }
+.check-label { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; }
+.check-label input { width: auto; margin: 2px 0 0; }
+.summary-list { margin: 4px 0; padding-left: 18px; font-size: 0.85rem; }
+.btn-col { display: flex; flex-direction: column; gap: 4px; }
+button.secondary { background: #b8901f; }
+button.secondary:hover:not(:disabled) { background: #8f6f15; }
+.kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
+@media (min-width: 560px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+.kpi { background: #f3f4fb; border-top: 3px solid #0000b9; border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; }
+.kpi span { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+.kpi strong { font-size: 1.15rem; color: #0000b9; }
+.kpi em { font-style: normal; font-size: 0.72rem; color: var(--muted); }
+.kpi-credit { border-top-color: #c2410c; }
+.kpi-credit strong, td.credit { color: #c2410c; }
+th.num, td.num { text-align: right; }
