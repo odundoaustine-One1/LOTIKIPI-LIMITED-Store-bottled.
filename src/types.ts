@@ -1,4 +1,7 @@
-export type Role = "management" | "store" | "production";
+// "sales" = sales rep: uses only the sales register site (lotikipi-sales.web.app).
+export type Role = "management" | "store" | "production" | "sales";
+
+export const SALES_ROLES: Role[] = ["management", "sales"];
 
 export interface UserProfile {
   uid: string;

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:sales": "tsc -b && vite build --mode sales --outDir dist-sales",
+    "dev:sales": "vite --mode sales",
     "preview": "vite preview"
   },
   "dependencies": {

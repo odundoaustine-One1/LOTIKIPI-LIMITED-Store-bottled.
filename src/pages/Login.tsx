@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
+import { APP_NAME, IS_SALES_APP } from "../lib/appMode";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -25,8 +26,8 @@ export default function Login() {
     <div className="centered-page">
       <form className="card login-card" onSubmit={handleSubmit}>
         <img src="/lotikipi-logo.png" alt="" className="logo" onError={(e) => (e.currentTarget.style.display = "none")} />
-        <h1>Lotikipi Water</h1>
-        <p className="muted">Sign in to record today's stock</p>
+        <h1>{APP_NAME}</h1>
+        <p className="muted">{IS_SALES_APP ? "Sign in to record today's sales" : "Sign in to record today's stock"}</p>
         <label>
           Email
           <input

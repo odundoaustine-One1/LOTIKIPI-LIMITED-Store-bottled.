@@ -8,7 +8,12 @@ possible** so this never happens again.
 ## Firebase project
 
 - Project ID: `lotikipi-1-stock-production`
-- Hosting: `https://lotikipi-1-stock-production.web.app`
+- Hosting, two sites in the same project (same logins, same Firestore):
+  - Stock tracker: `https://lotikipi-1-stock-production.web.app` (target `stock`, `npm run build` → `dist/`)
+  - Sales register: `https://lotikipi-sales.web.app` (target `sales`, `npm run build:sales` → `dist-sales/`,
+    management and sales rep accounts). One-time: create the site in Firebase console → Hosting →
+    "Add another site" with site ID `lotikipi-sales`. If that ID is taken, pick another and change
+    it in `.firebaserc` (`targets` → `sales`).
 - Firestore database: `(default)`, region `africa-south1`
 
 ## Roles (Firestore `users/{uid}`: `active`, `displayName`, `email`, `role`, `uid`)
@@ -19,6 +24,8 @@ combine roles on one account. Give someone two accounts if they need two roles.
 - `management` — Dashboard, Production, History, Audit Log, Payroll
 - `store` — Dashboard, Stock Entry, Production, History
 - `production` — Dashboard, Production, History
+- `sales` — sales rep: Sales register site only (Overview, Record a day, reports).
+  Signing in to the stock tracker shows a link to the sales site.
 
 ## Firestore collections
 
@@ -32,8 +39,7 @@ combine roles on one account. Give someone two accounts if they need two roles.
 - `staffMembers/{autoId}` — `name`, `active`
 - `auditLog/{autoId}` — written automatically by Cloud Functions (see below), never
   by the client
-- `salesDays/{YYYY-MM-DD}` — daily sales register (Sales section, management
-  only): `lines[]` (`section`, `size`, `qty`, `price`, `amount`), `totalSales`,
+- `salesDays/{YYYY-MM-DD}` — daily sales register (management and sales reps): `lines[]` (`section`, `size`, `qty`, `price`, `amount`), `totalSales`,
   `paybill[]`, `cashMpesa`, `credit`, `expenses[]` (`item`, `amount`),
   `expensesTotal`, `grossDeposit`, `netDeposit`, `notes`, `assumed[]`
 - `refills`, `itemConfig`, `payrollConfig`, `productSizeConfig` — seen in the
@@ -65,7 +71,11 @@ If you add a new query with `orderBy` + `where` on different fields, you will
 need to create the matching index in the Firebase console (Firestore → Indexes)
 or it will silently fail for real users once the collection grows.
 
-## Sales register (management)
+## Sales register (management and sales reps)
+
+The sales register is its own website (`lotikipi-sales.web.app`); the stock tracker
+does not show it. Same code base, built with `--mode sales` (`.env.sales`,
+`src/lib/appMode.ts`).
 
 `/sales` — month overview, list of recorded days with check status, and report
 downloads. `/sales/day/new` (or `/sales/day/YYYY-MM-DD` to correct a day) — the
@@ -92,7 +102,7 @@ before first use, or saving a day fails with "permission denied":
 ```
 match /salesDays/{day} {
   allow read, write: if request.auth != null
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "management"
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["management", "sales"]
     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
 }
 ```
@@ -102,7 +112,7 @@ match /salesDays/{day} {
 ```bash
 npm install -g firebase-tools
 firebase emulators:start --config firebase.emulators.json --project lotikipi-1-stock-production
-VITE_USE_EMULATOR=1 npm run dev     # in a second terminal
+VITE_USE_EMULATOR=1 npm run dev:sales     # in a second terminal
 ```
 
 The emulators use `firestore.rules.salesDays-test` (test-only rules; `firebase.json`
@@ -120,8 +130,12 @@ npm run dev
 ## Deploy
 
 ```bash
+# stock tracker
 npm run build
-firebase deploy --only hosting --project lotikipi-1-stock-production
+firebase deploy --only hosting:stock --project lotikipi-1-stock-production
+# sales register
+npm run build:sales
+firebase deploy --only hosting:sales --project lotikipi-1-stock-production
 ```
 
 Always deploy to a preview channel first and test with a real login before
@@ -132,6 +146,6 @@ firebase hosting:channel:deploy preview-name --project lotikipi-1-stock-producti
 ```
 
 Or without a computer: GitHub → Actions → "Deploy to Firebase Hosting" → Run
-workflow (choose `preview` first, then `live`). One-time setup: add repo secret
+workflow (choose the site, `sales` or `stock`, and `preview` first, then `live`). One-time setup: add repo secret
 `FIREBASE_SERVICE_ACCOUNT` (Firebase console → Project settings → Service
 accounts → Generate new private key; paste the whole JSON).

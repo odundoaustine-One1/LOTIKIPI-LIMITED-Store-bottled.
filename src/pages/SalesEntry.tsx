@@ -115,7 +115,7 @@ export default function SalesEntry() {
   const d0 = parseKey(date);
   const isSunday = d0.getDay() === 0;
   const isMonthEnd = d0.getDate() === lastOfMonth(d0.getFullYear(), d0.getMonth()).getDate();
-  const canSave = day.lines.length > 0 && (!issues.length || ack) && (!existing || ack) && !saving;
+  const canSave = !loading && day.lines.length > 0 && (!issues.length || ack) && (!existing || ack) && !saving;
 
   function setLine(i: number, patch: Partial<LineForm>) {
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -173,6 +173,8 @@ export default function SalesEntry() {
         )}
       </section>
 
+      {/* Locked while a date loads, so figures typed meanwhile are not wiped when it arrives. */}
+      <fieldset className="plain-fieldset" disabled={loading}>
       {SECTIONS.map((s) => (
         <section className="card" key={s}>
           <h2>{s} <span className="muted">({UNIT[s]})</span></h2>
@@ -235,6 +237,7 @@ export default function SalesEntry() {
         <label>Assumed / unclear figures (one per line)<textarea rows={2} value={assumed} placeholder="e.g. Paybill 2nd amount read as 2,100 (smudged)" onChange={(e) => setAssumed(e.target.value)} /></label>
       </section>
 
+      </fieldset>
       <section className={`card ${issues.length || day.assumed.length ? "attention-card" : ""}`}>
         <h2>Checks</h2>
         {issues.length === 0 ? (

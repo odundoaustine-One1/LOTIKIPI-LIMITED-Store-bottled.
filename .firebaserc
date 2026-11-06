@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "lotikipi-1-stock-production"
+  },
+  "targets": {
+    "lotikipi-1-stock-production": {
+      "hosting": {
+        "stock": ["lotikipi-1-stock-production"],
+        "sales": ["lotikipi-sales"]
+      }
+    }
   }
 }
