@@ -27,6 +27,7 @@ const NAV_BY_ROLE: Record<Role, { to: string; label: string }[]> = {
     { to: "/production", label: "Production" },
     { to: "/history", label: "History" },
   ],
+  sales: SALES_NAV,
 };
 
 export default function Layout() {
