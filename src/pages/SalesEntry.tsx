@@ -4,12 +4,23 @@ import { useAuth } from "../AuthContext";
 import { todayKey } from "../lib/dates";
 import {
   DEFAULT_PRICE, SECTIONS, SIZES, UNIT, kday, lastOfMonth, money, parseKey, runChecks, summaryLines, sum,
-  type Section, type SalesDay,
+  type CreditEntry, type Section, type SalesDay,
 } from "../sales/model";
 import { getDay, loadAllDays, saveDay } from "../sales/store";
 
 interface LineForm { section: Section; size: string; qty: string; price: string; amount: string }
 interface ExpForm { item: string; amount: string }
+interface CreditForm { customer: string; amount: string }
+
+/** Keep payments already recorded when a day is corrected: match by customer name. */
+function carryPayments(rows: { customer: string; amount: number }[], prev: CreditEntry[]): CreditEntry[] {
+  const used = new Set<number>();
+  return rows.map((r) => {
+    const i = prev.findIndex((p, j) => !used.has(j) && p.customer.trim().toLowerCase() === r.customer.trim().toLowerCase());
+    if (i >= 0) used.add(i);
+    return { ...r, paid: i >= 0 ? prev[i].paid : [] };
+  });
+}
 
 const num = (s: string) => (s.trim() === "" ? NaN : Number(s.replace(/,/g, "")));
 const orElse = (s: string, fallback: number) => (Number.isNaN(num(s)) ? fallback : num(s));
@@ -34,6 +45,7 @@ export default function SalesEntry() {
   const [paybill, setPaybill] = useState<string[]>([""]);
   const [cash, setCash] = useState("");
   const [credit, setCredit] = useState("");
+  const [creditors, setCreditors] = useState<CreditForm[]>([]);
   const [exps, setExps] = useState<ExpForm[]>(DEFAULT_EXPENSES.map((item) => ({ item, amount: "" })));
   const [expTotal, setExpTotal] = useState("");
   const [gross, setGross] = useState("");
@@ -62,6 +74,7 @@ export default function SalesEntry() {
           setPaybill([""]);
           setCash("");
           setCredit("");
+          setCreditors([]);
           setExps(DEFAULT_EXPENSES.map((item) => ({ item, amount: "" })));
           setExpTotal("");
           setGross("");
@@ -77,6 +90,7 @@ export default function SalesEntry() {
         setPaybill(d.paybill.length ? d.paybill.map(String) : [""]);
         setCash(String(d.cashMpesa));
         setCredit(String(d.credit));
+        setCreditors(d.creditors.map((c) => ({ customer: c.customer, amount: String(c.amount) })));
         setExps(d.expenses.map((e) => ({ item: e.item, amount: String(e.amount) })));
         setExpTotal(String(d.expensesTotal));
         setGross(String(d.grossDeposit));
@@ -100,16 +114,20 @@ export default function SalesEntry() {
     const es = exps.filter((e) => e.item.trim() && !Number.isNaN(num(e.amount))).map((e) => ({ item: e.item.trim(), amount: num(e.amount) }));
     const pb = paybill.map((p) => orElse(p, 0)).filter((x) => x);
     const T = orElse(total, sum(ls.map((l) => l.amount)));
-    const cr = orElse(credit, 0);
+    const crRows = creditors
+      .filter((c) => c.customer.trim() || !Number.isNaN(num(c.amount)))
+      .map((c) => ({ customer: c.customer.trim(), amount: orElse(c.amount, 0) }));
+    const cr = orElse(credit, sum(crRows.map((c) => c.amount)));
+    const crs = carryPayments(crRows, existing?.creditors ?? []);
     const c = orElse(cash, T - sum(pb) - cr);
     const et = orElse(expTotal, sum(es.map((e) => e.amount)));
     const g = orElse(gross, c);
     return {
-      date, lines: ls, totalSales: T, paybill: pb, cashMpesa: c, credit: cr, expenses: es, expensesTotal: et,
+      date, lines: ls, totalSales: T, paybill: pb, cashMpesa: c, credit: cr, creditors: crs, expenses: es, expensesTotal: et,
       grossDeposit: g, netDeposit: orElse(net, g - et), notes: notes.trim(),
       assumed: assumed.split("\n").map((s) => s.trim()).filter(Boolean),
     };
-  }, [date, lines, total, paybill, cash, credit, exps, expTotal, gross, net, notes, assumed]);
+  }, [date, lines, total, paybill, cash, credit, creditors, existing, exps, expTotal, gross, net, notes, assumed]);
 
   const issues = runChecks(day);
   const d0 = parseKey(date);
@@ -211,7 +229,16 @@ export default function SalesEntry() {
         ))}
         <button className="link-btn" onClick={() => setPaybill([...paybill, ""])}>+ Add another Paybill amount</button>
         <label>Cash/M-PESA<input inputMode="decimal" value={cash} placeholder={money(day.cashMpesa)} onChange={(e) => setCash(e.target.value)} /></label>
-        <label>Credit<input inputMode="decimal" value={credit} placeholder="0" onChange={(e) => setCredit(e.target.value)} /></label>
+        <label>Credit<input inputMode="decimal" value={credit} placeholder={money(day.credit)} onChange={(e) => setCredit(e.target.value)} /></label>
+        <label>Who took credit <span className="muted">(optional - shows on the Credit due list)</span></label>
+        {creditors.map((c, i) => (
+          <div className="sale-row" key={i}>
+            <input value={c.customer} placeholder="customer" onChange={(ev) => setCreditors(creditors.map((x, j) => (j === i ? { ...x, customer: ev.target.value } : x)))} />
+            <input inputMode="decimal" value={c.amount} placeholder="amount" onChange={(ev) => setCreditors(creditors.map((x, j) => (j === i ? { ...x, amount: ev.target.value } : x)))} />
+            <button className="link-btn" onClick={() => setCreditors(creditors.filter((_, j) => j !== i))}>&times;</button>
+          </div>
+        ))}
+        <button className="link-btn" onClick={() => setCreditors([...creditors, { customer: "", amount: "" }])}>+ Add credit customer</button>
       </section>
 
       <section className="card">
@@ -238,7 +265,7 @@ export default function SalesEntry() {
       <section className={`card ${issues.length || day.assumed.length ? "attention-card" : ""}`}>
         <h2>Checks</h2>
         {issues.length === 0 ? (
-          <p><span className="badge badge-ok">OK</span> All 5 checks passed.</p>
+          <p><span className="badge badge-ok">OK</span> All {day.creditors.length ? 6 : 5} checks passed.</p>
         ) : (
           <>
             <p><span className="badge badge-bad">Please confirm</span></p>

@@ -1,6 +1,6 @@
-import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { normalizeDay, type DayMap, type SalesDay } from "./model";
+import { creditEntries, normalizeDay, type DayMap, type SalesDay } from "./model";
 
 // salesDays/{YYYY-MM-DD}. One small doc per day, so fetching the whole
 // collection and filtering client-side is cheap and needs no indexes
@@ -29,4 +29,15 @@ export async function saveDay(day: SalesDay, uid: string, isNew: boolean): Promi
     updatedAt: serverTimestamp(),
     ...(isNew ? { createdBy: uid, createdAt: serverTimestamp() } : {}),
   }, { merge: true }); // merge keeps createdBy/createdAt on corrections; arrays are replaced whole
+}
+
+/** Record a repayment against one credit entry of a day. Re-reads the day
+ *  first so a payment never overwrites a newer correction. */
+export async function recordCreditPayment(date: string, index: number, payDate: string, amount: number, uid: string): Promise<void> {
+  const day = await getDay(date);
+  if (!day) throw new Error(`No sales recorded for ${date}`);
+  const entries = creditEntries(day).map((c) => ({ ...c, paid: [...c.paid] }));
+  if (!entries[index]) throw new Error("That credit entry no longer exists - reload the page");
+  entries[index].paid.push({ date: payDate, amount });
+  await updateDoc(doc(db, COL, date), { creditors: entries, updatedBy: uid, updatedAt: serverTimestamp() });
 }

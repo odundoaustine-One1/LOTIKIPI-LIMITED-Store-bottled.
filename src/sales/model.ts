@@ -34,6 +34,20 @@ export interface ExpenseItem {
   amount: number;
 }
 
+/** A repayment received against a credit sale. */
+export interface CreditPayment {
+  date: string; // YYYY-MM-DD
+  amount: number;
+}
+
+/** Who a day's credit is owed by. Optional: a day with credit and no
+ *  entries is treated as one unnamed entry for the whole credit. */
+export interface CreditEntry {
+  customer: string;
+  amount: number;
+  paid: CreditPayment[];
+}
+
 export interface SalesDay {
   date: string; // YYYY-MM-DD
   lines: SaleLine[];
@@ -41,6 +55,7 @@ export interface SalesDay {
   paybill: number[];
   cashMpesa: number;
   credit: number;
+  creditors: CreditEntry[];
   expenses: ExpenseItem[];
   expensesTotal: number;
   grossDeposit: number;
@@ -75,7 +90,7 @@ export const pct = (a: number, b: number) => (b ? (a / b) * 100 : 0);
 
 const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;
 
-/** The five checks. Returns human-readable problems (empty = all passed). */
+/** The checks (five, plus credit customers = credit when customers are named). Returns human-readable problems (empty = all passed). */
 export function runChecks(d: SalesDay): string[] {
   const out: string[] = [];
   for (const l of d.lines) {
@@ -86,6 +101,10 @@ export function runChecks(d: SalesDay): string[] {
   if (!near(s, d.totalSales)) out.push(`Refills + Completes + Cartons = ${money(s)}, Total sales = ${money(d.totalSales)}`);
   const p = paybillTotal(d) + d.cashMpesa + d.credit;
   if (!near(p, d.totalSales)) out.push(`Paybill + Cash/M-PESA + Credit = ${money(p)}, Total sales = ${money(d.totalSales)}`);
+  if (d.creditors.length) {
+    const c = sum(d.creditors.map((x) => x.amount));
+    if (!near(c, d.credit)) out.push(`Credit customers add to ${money(c)}, Credit = ${money(d.credit)}`);
+  }
   const e = sum(d.expenses.map((x) => x.amount));
   if (!near(e, d.expensesTotal)) out.push(`Expense items add to ${money(e)}, Total expenses = ${money(d.expensesTotal)}`);
   if (!near(d.grossDeposit - d.expensesTotal, d.netDeposit))
@@ -100,6 +119,7 @@ export function runChecks(d: SalesDay): string[] {
 export function normalizeDay(raw: Record<string, unknown>): SalesDay {
   const n = (v: unknown) => Number(v) || 0;
   const lines = (Array.isArray(raw.lines) ? raw.lines : []) as Record<string, unknown>[];
+  const crs = (Array.isArray(raw.creditors) ? raw.creditors : []) as Record<string, unknown>[];
   const exps = (Array.isArray(raw.expenses) ? raw.expenses : []) as Record<string, unknown>[];
   return {
     date: String(raw.date ?? ""),
@@ -114,6 +134,11 @@ export function normalizeDay(raw: Record<string, unknown>): SalesDay {
     paybill: (Array.isArray(raw.paybill) ? raw.paybill : [raw.paybill]).map(n),
     cashMpesa: n(raw.cashMpesa),
     credit: n(raw.credit),
+    creditors: crs.map((c) => ({
+      customer: String(c.customer ?? ""),
+      amount: n(c.amount),
+      paid: ((Array.isArray(c.paid) ? c.paid : []) as Record<string, unknown>[]).map((p) => ({ date: String(p.date ?? ""), amount: n(p.amount) })),
+    })),
     expenses: exps.map((e) => ({ item: String(e.item ?? ""), amount: n(e.amount) })),
     expensesTotal: n(raw.expensesTotal),
     grossDeposit: n(raw.grossDeposit),
@@ -232,3 +257,41 @@ export function summaryLines(d: SalesDay): string[] {
     `Net deposit: Ksh ${money(d.netDeposit)} (Gross ${money(d.grossDeposit)} - Expenses ${money(d.expensesTotal)})`,
   ];
 }
+
+// ---------------------------------------------------------------- credit due
+
+/** The day's credit as entries; an unnamed day becomes one entry. */
+export function creditEntries(d: SalesDay): CreditEntry[] {
+  if (d.creditors.length) return d.creditors;
+  return d.credit > 0 ? [{ customer: "", amount: d.credit, paid: [] }] : [];
+}
+
+export const creditPaid = (c: CreditEntry) => sum(c.paid.map((p) => p.amount));
+export const creditBalance = (c: CreditEntry) => Math.max(0, c.amount - creditPaid(c));
+
+export interface DueRow {
+  date: string;
+  index: number; // position in creditEntries(day)
+  customer: string;
+  amount: number;
+  paid: number;
+  balance: number;
+  lastPaid: string | null;
+}
+
+/** Every credit sale across all days, oldest first. */
+export function creditRows(days: DayMap): DueRow[] {
+  const out: DueRow[] = [];
+  for (const k of Object.keys(days).sort())
+    creditEntries(days[k]).forEach((c, index) => {
+      const lastPaid = c.paid.map((p) => p.date).sort().pop() ?? null;
+      out.push({ date: k, index, customer: c.customer, amount: c.amount, paid: creditPaid(c), balance: creditBalance(c), lastPaid });
+    });
+  return out;
+}
+
+export const totalDue = (days: DayMap) => sum(creditRows(days).map((r) => r.balance));
+
+/** Whole days between a sale date and today. */
+export const ageDays = (k: string, today: string) =>
+  Math.round((parseKey(today).getTime() - parseKey(k).getTime()) / 86400000);

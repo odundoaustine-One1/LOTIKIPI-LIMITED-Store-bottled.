@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { todayKey } from "../lib/dates";
 import {
-  MONTHS, agg, daysIn, kdate, lastOfMonth, money, parseKey, pct, runChecks, wd3, type DayMap,
+  MONTHS, agg, daysIn, totalDue, kdate, lastOfMonth, money, parseKey, pct, runChecks, wd3, type DayMap,
 } from "../sales/model";
 import { loadAllDays } from "../sales/store";
 
@@ -50,6 +50,13 @@ export default function Sales() {
       <h1>Sales register</h1>
       <p className="muted">Daily "SUMMARY ON" pages, checks and branded reports. Ksh.</p>
       <Link to="/sales/day/new"><button>+ Record a day</button></Link>
+
+      <section className="card">
+        <div className="sale-row">
+          <div className="kpi kpi-credit" style={{ flex: 1 }}><span>Credit due (all days)</span><strong>{money(totalDue(days))}</strong></div>
+          <Link to="/sales/credit"><button>View all sales due</button></Link>
+        </div>
+      </section>
 
       {(weeklyDue || monthlyDue) && latest && (
         <section className="card attention-card">

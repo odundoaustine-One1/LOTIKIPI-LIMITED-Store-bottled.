@@ -34,7 +34,8 @@ combine roles on one account. Give someone two accounts if they need two roles.
   by the client
 - `salesDays/{YYYY-MM-DD}` — daily sales register (Sales section, management
   only): `lines[]` (`section`, `size`, `qty`, `price`, `amount`), `totalSales`,
-  `paybill[]`, `cashMpesa`, `credit`, `expenses[]` (`item`, `amount`),
+  `paybill[]`, `cashMpesa`, `credit`, `creditors[]` (`customer`, `amount`,
+  `paid[]` of `date`, `amount`), `expenses[]` (`item`, `amount`),
   `expensesTotal`, `grossDeposit`, `netDeposit`, `notes`, `assumed[]`
 - `refills`, `itemConfig`, `payrollConfig`, `productSizeConfig` — seen in the
   original DB but not yet used by this rebuild; check the Firebase console before
@@ -135,3 +136,11 @@ Or without a computer: GitHub → Actions → "Deploy to Firebase Hosting" → R
 workflow (choose `preview` first, then `live`). One-time setup: add repo secret
 `FIREBASE_SERVICE_ACCOUNT` (Firebase console → Project settings → Service
 accounts → Generate new private key; paste the whole JSON).
+
+`/sales/credit` — **Credit due**: every credit sale still owed across all
+recorded days, oldest first, with age in days, totals by customer, and
+"Record payment" to log repayments (part or full). Name who took credit on the
+day's entry form ("Who took credit"); a day's credit with no names shows as one
+"Not named" line. When customers are named, a sixth check makes sure they add
+up to the day's Credit. Payments are stored on the day doc (`creditors[].paid`),
+so no new Firestore rules are needed.

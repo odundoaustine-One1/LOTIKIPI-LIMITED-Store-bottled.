@@ -11,6 +11,7 @@ import AuditLog from "./pages/AuditLog";
 import Payroll from "./pages/Payroll";
 import Sales from "./pages/Sales";
 import SalesEntry from "./pages/SalesEntry";
+import CreditDue from "./pages/CreditDue";
 import type { Role } from "./types";
 
 function RequireRole({ allow, children }: { allow: Role[]; children: JSX.Element }) {
@@ -68,6 +69,14 @@ function Gate() {
           element={
             <RequireRole allow={["management"]}>
               <Sales />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/sales/credit"
+          element={
+            <RequireRole allow={["management"]}>
+              <CreditDue />
             </RequireRole>
           }
         />
